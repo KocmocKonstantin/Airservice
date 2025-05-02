@@ -1,16 +1,25 @@
 import io
 import os
-from django.shortcuts import get_object_or_404, render, redirect
-from .forms import TicketUploadForm
-from .models import Flight, Ticket
+
 import fitz
 import pytesseract
 import requests
-from django.conf import settings
 from PIL import Image
+from django.conf import settings
+from django.shortcuts import get_object_or_404, render, redirect
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
-from .utils import extract_arrival_city, extract_arrival_time, extract_departure_city, extract_departure_time, extract_passenger_name, extract_flight_number
+
+from .forms import TicketUploadForm
+from .models import Flight, Ticket
+from .utils import (
+    extract_arrival_city,
+    extract_arrival_time,
+    extract_departure_city,
+    extract_departure_time,
+    extract_passenger_name,
+    extract_flight_number,
+)
 
 def flight_list(request):
     flights = Flight.objects.all()
