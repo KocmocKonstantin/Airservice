@@ -14,6 +14,7 @@ from .forms import TicketUploadForm
 from .constants import (
     WEATHER_API_URL,
     SCOPES,
+    REDIRECT_URI,
     CLIENT_SECRET_FILENAME,
 )
 from .models import Flight, Ticket
@@ -26,17 +27,33 @@ from .utils import (
     extract_flight_number,
 )
 
-REDIRECT_URI = settings.OAUTH2_REDIRECT_URI
-
 GOOGLE_CLIENT_SECRET_FILE = os.path.join(settings.BASE_DIR, 'flights', CLIENT_SECRET_FILENAME)
 
 
 def flight_list(request):
+    """
+    View to display a list of all flights.
+
+    Args:
+        request: The HTTP request object.
+    
+    Returns:
+        HttpResponse: Renders the list of flights on the flight_list template.
+    """
     flights = Flight.objects.all()
     return render(request, 'flights/flight_list.html', {'flights': flights})
 
 
 def parse_pdf(file_path):
+    """
+    Parses a PDF file and extracts both text and images using OCR.
+
+    Args:
+        file_path (str): The path to the PDF file to be parsed.
+    
+    Returns:
+        str: The extracted text content from the PDF and images.
+    """
     doc = fitz.open(file_path)
     text = ""
     for page in doc:
@@ -51,6 +68,15 @@ def parse_pdf(file_path):
 
 
 def ticket_upload(request):
+    """
+    Handles the ticket upload process.
+
+    Args:
+        request: The HTTP request object containing the uploaded file.
+    
+    Returns:
+        HttpResponse: Redirects to the ticket detail page after successful upload.
+    """
     if request.method == 'POST':
         form = TicketUploadForm(request.POST, request.FILES)
         if form.is_valid():
@@ -73,6 +99,16 @@ def ticket_upload(request):
 
 
 def ticket_detail(request, pk):
+    """
+    Displays the details of a specific ticket.
+
+    Args:
+        request: The HTTP request object.
+        pk (int): The primary key of the ticket to be displayed.
+    
+    Returns:
+        HttpResponse: Renders the ticket details page with weather information.
+    """
     ticket = get_object_or_404(Ticket, pk=pk)
     weather = get_weather(ticket.arrival_city)
     context = {
@@ -84,8 +120,17 @@ def ticket_detail(request, pk):
 
 
 def get_weather(city):
+    """
+    Fetches weather information for a given city using the OpenWeather API.
+
+    Args:
+        city (str): The city name to fetch weather information for.
+    
+    Returns:
+        dict: A dictionary containing the weather data (temperature and description).
+    """
     api_key = settings.OPENWEATHER_API_KEY
-    url = f"{WEATHER_API_URL}?q={city}&appid={api_key}&units=metric&lang=en"  
+    url = f"{WEATHER_API_URL}?q={city}&appid={api_key}&units=metric&lang=ru"
     response = requests.get(url)
 
     if response.status_code == 200:
@@ -98,10 +143,19 @@ def get_weather(city):
 
 
 def calendar_auth(request):
+    """
+    Initiates the Google OAuth2 flow to authenticate the user.
+
+    Args:
+        request: The HTTP request object.
+    
+    Returns:
+        HttpResponse: Redirects the user to Google's OAuth2 consent screen.
+    """
     flow = Flow.from_client_secrets_file(
         GOOGLE_CLIENT_SECRET_FILE,
         scopes=SCOPES,
-        redirect_uri=REDIRECT_URI  
+        redirect_uri=REDIRECT_URI
     )
     authorization_url, state = flow.authorization_url(
         access_type='offline',
@@ -113,12 +167,21 @@ def calendar_auth(request):
 
 
 def oauth2callback(request):
+    """
+    Handles the callback after user authorization during the OAuth2 flow.
+
+    Args:
+        request: The HTTP request object containing the authorization response.
+    
+    Returns:
+        HttpResponse: Renders a success page with the created event details.
+    """
     state = request.session['state']
     flow = Flow.from_client_secrets_file(
         GOOGLE_CLIENT_SECRET_FILE,
         scopes=SCOPES,
         state=state,
-        redirect_uri=REDIRECT_URI  
+        redirect_uri=REDIRECT_URI
     )
     authorization_response = request.build_absolute_uri()
     flow.fetch_token(authorization_response=authorization_response)
@@ -128,9 +191,9 @@ def oauth2callback(request):
     service = build('calendar', 'v3', credentials=credentials)
 
     event = {
-        'summary': 'My Ticket',  
-        'location': 'Airport',  
-        'description': 'Information about my ticket.',  
+        'summary': 'My Ticket',
+        'location': 'Airport',
+        'description': 'Details about my flight ticket.',
         'start': {
             'dateTime': '2025-05-02T10:00:00',
             'timeZone': 'Europe/Moscow',
