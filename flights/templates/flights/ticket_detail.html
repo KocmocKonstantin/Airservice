@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Ticket Detail</title>
+</head>
+<body>
+    <h1>Билет</h1>
+    <p>Имя пассажира: {{ ticket.passenger_name }}</p>
+    <p>Номер рейса: {{ ticket.flight_number }}</p>
+    <p>Город вылета: {{ ticket.departure_city }}</p>
+    <p>Город прилета: {{ ticket.arrival_city }}</p>
+    <p>Время вылета: {{ ticket.departure_time }}</p>
+    <p>Время прилета: {{ ticket.arrival_time }}</p>
+
+    <h2>Погода в {{ ticket.arrival_city }}</h2>
+    {% if weather.error %}
+        <p>Ошибка: {{ weather.error }}</p>
+    {% else %}
+        <p>Температура: {{ weather.temperature }}°C</p>
+        <p>Описание: {{ weather.description }}</p>
+    {% endif %}
+</body>
+</html>

@@ -1,0 +1,124 @@
+import io
+import os
+from django.shortcuts import get_object_or_404, render, redirect
+from .forms import TicketUploadForm
+from .models import Flight, Ticket
+import fitz
+import pytesseract
+import requests
+from django.conf import settings
+from PIL import Image
+from google_auth_oauthlib.flow import Flow
+from googleapiclient.discovery import build
+from .utils import extract_arrival_city, extract_arrival_time, extract_departure_city, extract_departure_time, extract_passenger_name, extract_flight_number
+
+def flight_list(request):
+    flights = Flight.objects.all()
+    return render(request, 'flights/flight_list.html', {'flights': flights})
+
+def parse_pdf(file_path):
+    doc = fitz.open(file_path)
+    text = ""
+    for page in doc:
+        text += page.get_text()
+        for img_index, img in enumerate(page.get_images(full=True)):
+            xref = img[0]
+            base_image = doc.extract_image(xref)
+            image_bytes = base_image["image"]
+            image = Image.open(io.BytesIO(image_bytes))
+            text += pytesseract.image_to_string(image)
+    return text
+
+def ticket_upload(request):
+    if request.method == 'POST':
+        form = TicketUploadForm(request.POST, request.FILES)
+        if form.is_valid():
+            ticket = form.save(commit=False)
+            file_path = ticket.pdf_file.path
+
+            text = parse_pdf(file_path)
+            ticket.passenger_name = extract_passenger_name(text)
+            ticket.flight_number = extract_flight_number(text)
+            ticket.departure_city = extract_departure_city(text)
+            ticket.arrival_city = extract_arrival_city(text)
+            ticket.departure_time = extract_departure_time(text)
+            ticket.arrival_time = extract_arrival_time(text)
+            
+            ticket.save()
+            return redirect('ticket_detail', pk=ticket.pk)
+    else:
+        form = TicketUploadForm()
+    return render(request, 'flights/upload_ticket.html', {'form': form})
+
+def ticket_detail(request, pk):
+    ticket = get_object_or_404(Ticket, pk=pk)
+    weather = get_weather(ticket.arrival_city)
+    context = {
+        'ticket': ticket,
+        'flight_duration': ticket.arrival_time - ticket.departure_time
+    }
+    return render(request, 'flights/ticket_detail.html', {'ticket': ticket, 'weather': weather})
+
+def get_weather(city):
+    api_key = settings.OPENWEATHER_API_KEY  
+    url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric&lang=ru"
+    response = requests.get(url)
+    
+    if response.status_code == 200:
+        data = response.json()
+        temp = data['main']['temp']
+        description = data['weather'][0]['description']
+        return {'temperature': temp, 'description': description}
+    else:
+        return {'error': 'Не удалось получить данные о погоде'}
+    
+GOOGLE_CLIENT_SECRET_FILE = os.path.join(settings.BASE_DIR, 'flights', 'client_secret.json')
+SCOPES = ['https://www.googleapis.com/auth/calendar.events']
+REDIRECT_URI = 'http://localhost:8000/oauth2callback'
+
+def calendar_auth(request):
+    flow = Flow.from_client_secrets_file(
+        GOOGLE_CLIENT_SECRET_FILE,
+        scopes=SCOPES,
+        redirect_uri=REDIRECT_URI
+    )
+    authorization_url, state = flow.authorization_url(
+        access_type='offline',
+        include_granted_scopes='true',
+        prompt='consent'
+    )
+    request.session['state'] = state
+    return redirect(authorization_url)
+
+def oauth2callback(request):
+    state = request.session['state']
+    flow = Flow.from_client_secrets_file(
+        GOOGLE_CLIENT_SECRET_FILE,
+        scopes=SCOPES,
+        state=state,
+        redirect_uri=REDIRECT_URI
+    )
+    authorization_response = request.build_absolute_uri()
+    flow.fetch_token(authorization_response=authorization_response)
+
+    credentials = flow.credentials
+
+    service = build('calendar', 'v3', credentials=credentials)
+
+    event = {
+        'summary': 'Мой билет',
+        'location': 'Аэропорт',
+        'description': 'Информация о моем билете.',
+        'start': {
+            'dateTime': '2025-05-02T10:00:00',
+            'timeZone': 'Europe/Moscow',
+        },
+        'end': {
+            'dateTime': '2025-05-02T12:00:00',
+            'timeZone': 'Europe/Moscow',
+        },
+    }
+
+    event_result = service.events().insert(calendarId='primary', body=event).execute()
+
+    return render(request, 'flights/calendar_success.html', {'event': event_result})  
