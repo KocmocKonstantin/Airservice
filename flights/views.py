@@ -11,6 +11,11 @@ from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 
 from .forms import TicketUploadForm
+from .constants import (
+    WEATHER_API_URL,
+    SCOPES,
+    CLIENT_SECRET_FILENAME,
+)
 from .models import Flight, Ticket
 from .utils import (
     extract_arrival_city,
@@ -21,9 +26,15 @@ from .utils import (
     extract_flight_number,
 )
 
+REDIRECT_URI = settings.OAUTH2_REDIRECT_URI
+
+GOOGLE_CLIENT_SECRET_FILE = os.path.join(settings.BASE_DIR, 'flights', CLIENT_SECRET_FILENAME)
+
+
 def flight_list(request):
     flights = Flight.objects.all()
     return render(request, 'flights/flight_list.html', {'flights': flights})
+
 
 def parse_pdf(file_path):
     doc = fitz.open(file_path)
@@ -37,6 +48,7 @@ def parse_pdf(file_path):
             image = Image.open(io.BytesIO(image_bytes))
             text += pytesseract.image_to_string(image)
     return text
+
 
 def ticket_upload(request):
     if request.method == 'POST':
@@ -52,44 +64,44 @@ def ticket_upload(request):
             ticket.arrival_city = extract_arrival_city(text)
             ticket.departure_time = extract_departure_time(text)
             ticket.arrival_time = extract_arrival_time(text)
-            
+
             ticket.save()
             return redirect('ticket_detail', pk=ticket.pk)
     else:
         form = TicketUploadForm()
     return render(request, 'flights/upload_ticket.html', {'form': form})
 
+
 def ticket_detail(request, pk):
     ticket = get_object_or_404(Ticket, pk=pk)
     weather = get_weather(ticket.arrival_city)
     context = {
         'ticket': ticket,
-        'flight_duration': ticket.arrival_time - ticket.departure_time
+        'flight_duration': ticket.arrival_time - ticket.departure_time,
+        'weather': weather,
     }
-    return render(request, 'flights/ticket_detail.html', {'ticket': ticket, 'weather': weather})
+    return render(request, 'flights/ticket_detail.html', context)
+
 
 def get_weather(city):
-    api_key = settings.OPENWEATHER_API_KEY  
-    url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric&lang=ru"
+    api_key = settings.OPENWEATHER_API_KEY
+    url = f"{WEATHER_API_URL}?q={city}&appid={api_key}&units=metric&lang=en"  
     response = requests.get(url)
-    
+
     if response.status_code == 200:
         data = response.json()
         temp = data['main']['temp']
         description = data['weather'][0]['description']
         return {'temperature': temp, 'description': description}
     else:
-        return {'error': 'Не удалось получить данные о погоде'}
-    
-GOOGLE_CLIENT_SECRET_FILE = os.path.join(settings.BASE_DIR, 'flights', 'client_secret.json')
-SCOPES = ['https://www.googleapis.com/auth/calendar.events']
-REDIRECT_URI = 'http://localhost:8000/oauth2callback'
+        return {'error': 'Failed to retrieve weather data'}
+
 
 def calendar_auth(request):
     flow = Flow.from_client_secrets_file(
         GOOGLE_CLIENT_SECRET_FILE,
         scopes=SCOPES,
-        redirect_uri=REDIRECT_URI
+        redirect_uri=REDIRECT_URI  
     )
     authorization_url, state = flow.authorization_url(
         access_type='offline',
@@ -99,13 +111,14 @@ def calendar_auth(request):
     request.session['state'] = state
     return redirect(authorization_url)
 
+
 def oauth2callback(request):
     state = request.session['state']
     flow = Flow.from_client_secrets_file(
         GOOGLE_CLIENT_SECRET_FILE,
         scopes=SCOPES,
         state=state,
-        redirect_uri=REDIRECT_URI
+        redirect_uri=REDIRECT_URI  
     )
     authorization_response = request.build_absolute_uri()
     flow.fetch_token(authorization_response=authorization_response)
@@ -115,9 +128,9 @@ def oauth2callback(request):
     service = build('calendar', 'v3', credentials=credentials)
 
     event = {
-        'summary': 'Мой билет',
-        'location': 'Аэропорт',
-        'description': 'Информация о моем билете.',
+        'summary': 'My Ticket',  
+        'location': 'Airport',  
+        'description': 'Information about my ticket.',  
         'start': {
             'dateTime': '2025-05-02T10:00:00',
             'timeZone': 'Europe/Moscow',
@@ -130,4 +143,4 @@ def oauth2callback(request):
 
     event_result = service.events().insert(calendarId='primary', body=event).execute()
 
-    return render(request, 'flights/calendar_success.html', {'event': event_result})  
+    return render(request, 'flights/calendar_success.html', {'event': event_result})
