@@ -27,6 +27,7 @@ from .utils import (
     extract_flight_number,
 )
 
+
 GOOGLE_CLIENT_SECRET_FILE = os.path.join(settings.BASE_DIR, 'flights', CLIENT_SECRET_FILENAME)
 
 
@@ -207,3 +208,4 @@ def oauth2callback(request):
     event_result = service.events().insert(calendarId='primary', body=event).execute()
 
     return render(request, 'flights/calendar_success.html', {'event': event_result})
+# TEST COMMENT

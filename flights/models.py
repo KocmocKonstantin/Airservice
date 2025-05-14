@@ -9,6 +9,7 @@ class Flight(models.Model):
     def __str__(self):
         return f"{self.flight_number} from {self.departure} to {self.arrival}"
 
+
 class Ticket(models.Model):
     passenger_name = models.CharField(max_length=100)
     flight_number = models.CharField(max_length=20)
