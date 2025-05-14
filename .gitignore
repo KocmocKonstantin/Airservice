@@ -1,2 +1,7 @@
 venv/
 flights/client_secret.json
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+client_secret.json

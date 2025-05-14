@@ -29,7 +29,6 @@ from .utils import (
 
 GOOGLE_CLIENT_SECRET_FILE = os.path.join(settings.BASE_DIR, 'flights', CLIENT_SECRET_FILENAME)
 
-
 def flight_list(request):
     """
     View to display a list of all flights.

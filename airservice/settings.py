@@ -113,7 +113,6 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media/')
-
 OPENWEATHER_API_KEY = '6894a8f19e13fd734013d7ccbd34ef7e'
 
 GOOGLE_CLIENT_SECRET_FILE = os.path.join(BASE_DIR, 'flights', 'client_secret.json')
