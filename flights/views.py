@@ -27,6 +27,7 @@ from .utils import (
     extract_flight_number,
 )
 
+
 GOOGLE_CLIENT_SECRET_FILE = os.path.join(settings.BASE_DIR, 'flights', CLIENT_SECRET_FILENAME)
 
 

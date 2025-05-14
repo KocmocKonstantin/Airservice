@@ -1,5 +1,6 @@
 import re
 
+
 def extract_passenger_name(text):
     match = re.search(r"Пассажир:\s+([A-ZА-Я ]+)", text)
     return match.group(1).strip() if match else "Unknown"
